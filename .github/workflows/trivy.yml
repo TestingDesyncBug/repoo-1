@@ -1,0 +1,48 @@
+# Filesystem scan with Aqua Supply Chain integration (results flow to Aqua Hub via lake connector).
+# Based on GitHub's Trivy template, customized for code-repo scanning (no Docker image build).
+
+name: trivy
+
+on:
+  push:
+    branches: [main, prod, staging]
+  pull_request:
+    branches: [main, prod, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Trivy code scan
+    runs-on: ubuntu-latest
+    environment: crossdep
+    env:
+      AQUA_KEY: ${{ secrets.AQUA_KEY }}
+      AQUA_SECRET: ${{ secrets.AQUA_SECRET }}
+      TRIVY_RUN_AS_PLUGIN: aqua
+      TRIVY_USERNAME: ${{ secrets.TRIVY_USERNAME }}
+      TRIVY_PASSWORD: ${{ secrets.TRIVY_PASSWORD }}
+      TRIVY_DB_REPOSITORY: registry.aquasec.com/trivy-db:2
+      TRIVY_JAVA_DB_REPOSITORY: registry.aquasec.com/trivy-java-db:1
+      TRIVY_CHECKS_BUNDLE_REPOSITORY: registry.aquasec.com/trivy-checks:1
+      OVERRIDE_BRANCH: ${{ github.ref_name }}
+      OVERRIDE_SOURCE_BRANCH: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Trivy and Aqua plugin
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy plugin install aqua
+
+      - name: Run Trivy filesystem scan (Supply Chain)
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: config,vuln,secret
+          trivy-args: --sast
